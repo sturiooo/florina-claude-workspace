@@ -16,20 +16,21 @@ Przy instalacji zaznacz „Dodaj do PATH” i „Otwórz za pomocą Code”.
 
 ## 2. Folder projektu (pobranie paczki)
 
-Repozytorium jest prywatne. Na komputerze klienta najprościej:
+Repozytorium jest publiczne, logowanie do GitHuba nie jest potrzebne. W PowerShellu wklej cały blok:
 
 ```powershell
 cd $env:USERPROFILE\Documents
-winget install GitHub.cli -e
-gh auth login            # zaloguj się kontem Igora (tylko na chwilę)
-gh repo clone sturiooo/florina-claude-workspace florina-claude
-gh auth logout           # wyloguj Igora z tego komputera
-cd florina-claude
-git remote remove origin # klient nie wysyła nic do repozytorium Igora
+Invoke-WebRequest https://github.com/sturiooo/florina-claude-workspace/archive/refs/heads/main.zip -OutFile florina-claude.zip
+Expand-Archive florina-claude.zip -DestinationPath .
+Rename-Item florina-claude-workspace-main florina-claude
+Remove-Item florina-claude.zip
 ```
 
-Bez logowania na GitHub u klienta: Igor pobiera ZIP na swoim komputerze
-(`gh api repos/sturiooo/florina-claude-workspace/zipball > florina-claude.zip`), przenosi pendrivem i rozpakowuje do `Dokumenty\florina-claude`.
+Bez PowerShella: w przeglądarce `github.com/sturiooo/florina-claude-workspace`, zielony przycisk **Code**, **Download ZIP**.
+Rozpakuj, przeciągnij folder `florina-claude-workspace-main` do `Dokumenty` i zmień nazwę na `florina-claude`
+(w środku od razu ma być `CLAUDE.md`, a nie kolejny podfolder).
+
+Aktualizacja paczki w przyszłości: pobierz ZIP ponownie do innego folderu i przenieś zmienione pliki. Nie nadpisuj `.env`, `backup/`, `dziennik/` ani `raporty/`.
 
 ## 3. Instalator
 
