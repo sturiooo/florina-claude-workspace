@@ -1,5 +1,23 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "enabledMcpjsonServers": [
+    "shopify-dev"
+  ],
+  "extraKnownMarketplaces": {
+    "shopify-ai-toolkit": {
+      "source": {
+        "source": "github",
+        "repo": "Shopify/shopify-ai-toolkit"
+      },
+      "autoUpdate": true
+    }
+  },
+  "enabledPlugins": {
+    "shopify-plugin@shopify-ai-toolkit": true
+  },
+  "env": {
+    "OPT_OUT_INSTRUMENTATION": "true"
+  },
   "permissions": {
     "defaultMode": "default",
     "disableBypassPermissionsMode": "disable",
@@ -8,9 +26,15 @@
       "Read",
       "Grep",
       "Glob",
+      "mcp__shopify-dev",
+      "mcp__shopify-dev__*",
       "Bash(python scripts/*)",
       "Bash(python ./scripts/*)",
+      "Bash(python seo/scripts/*)",
+      "Bash(python seo/shopify/*)",
       "Bash(python .claude/hooks/test_straznik.py)",
+      "Bash(node *shopify-ai-toolkit*search_docs.mjs*)",
+      "Bash(node *shopify-ai-toolkit*validate.mjs*)",
       "Bash(shopify version)",
       "Bash(shopify store execute *)",
       "Bash(shopify theme list *)",
@@ -20,10 +44,18 @@
       "Bash(git log *)",
       "Bash(ls *)",
       "Bash(dir *)",
+      "Bash(curl -s *)",
+      "Bash(curl -sL *)",
       "PowerShell(python scripts/*)",
       "PowerShell(python scripts\\*)",
       "PowerShell(python .\\scripts\\*)",
+      "PowerShell(python seo/scripts/*)",
+      "PowerShell(python seo\\scripts\\*)",
+      "PowerShell(python seo/shopify/*)",
+      "PowerShell(python seo\\shopify\\*)",
       "PowerShell(python .claude/hooks/test_straznik.py)",
+      "PowerShell(node *shopify-ai-toolkit*search_docs.mjs*)",
+      "PowerShell(node *shopify-ai-toolkit*validate.mjs*)",
       "PowerShell(shopify version)",
       "PowerShell(shopify store execute *)",
       "PowerShell(shopify theme list *)",
@@ -33,6 +65,7 @@
       "PowerShell(git log *)",
       "PowerShell(Get-ChildItem *)",
       "PowerShell(Get-Date *)",
+      "PowerShell(Invoke-WebRequest -UseBasicParsing *)",
       "Edit(./backup/**)",
       "Edit(./raporty/**)",
       "Edit(./robocze/**)",
@@ -40,9 +73,12 @@
       "Edit(./docs/struktura-sklepu.md)",
       "Edit(./docs/struktura-sklepu.json)",
       "WebFetch(domain:florina.pl)",
+      "WebFetch(domain:www.florina.pl)",
       "WebFetch(domain:shopify.dev)",
       "WebFetch(domain:help.shopify.com)",
-      "WebFetch(domain:api.baselinker.com)"
+      "WebFetch(domain:developers.google.com)",
+      "WebFetch(domain:api.baselinker.com)",
+      "WebSearch"
     ],
     "ask": [
       "Bash(* --allow-mutations*)",
@@ -94,8 +130,10 @@
       "Bash(shopify theme share*)",
       "Bash(shopify theme dev*)",
       "Bash(shopify theme duplicate*)",
+      "Bash(shopify theme console*)",
       "Bash(shopify app *)",
       "Bash(shopify auth logout*)",
+      "Bash(*szablon_wgraj*)",
       "Bash(cat *.env*)",
       "Bash(type *.env*)",
       "Bash(more *.env*)",
@@ -125,8 +163,10 @@
       "PowerShell(shopify theme share*)",
       "PowerShell(shopify theme dev*)",
       "PowerShell(shopify theme duplicate*)",
+      "PowerShell(shopify theme console*)",
       "PowerShell(shopify app *)",
       "PowerShell(shopify auth logout*)",
+      "PowerShell(*szablon_wgraj*)",
       "PowerShell(Get-Content *.env*)",
       "PowerShell(Get-ChildItem Env:*)",
       "Read(./.env)",
@@ -135,13 +175,13 @@
       "Read(~/.ssh/**)",
       "Edit(./.env)",
       "Edit(.env)",
-      "Edit(./.claude/settings.json)",
-      "Edit(./.claude/settings.local.json)",
-      "Edit(./.claude/hooks/**)",
-      "Edit(./.claude/skills/**)",
+      "Edit(./.mcp.json)",
+      "Edit(./.claude/**)",
       "Edit(./scripts/**)",
+      "Edit(./seo/**)",
       "Edit(./CLAUDE.md)",
       "Edit(./install.ps1)",
+      "Edit(./robocze/motyw/**)",
       "Edit(~/.claude/**)",
       "Edit(//c/Windows/**)",
       "Edit(//c/Program Files/**)",
@@ -158,7 +198,9 @@
           {
             "type": "command",
             "command": "python",
-            "args": ["${CLAUDE_PROJECT_DIR}/.claude/hooks/straznik.py"],
+            "args": [
+              "${CLAUDE_PROJECT_DIR}/.claude/hooks/straznik.py"
+            ],
             "timeout": 30,
             "onFailure": "block"
           }

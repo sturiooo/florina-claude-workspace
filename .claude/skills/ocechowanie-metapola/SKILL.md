@@ -20,7 +20,7 @@ i **filtry** w kategoriach. Zanim zaczniesz: `docs/struktura-sklepu.md` (skill `
    - `number_integer` / `number_decimal`: liczba bez jednostki (jednostka jest w nazwie pola, np. „Pojemność [L]”: wpisujesz `3,6`),
    - `boolean`: Tak / Nie,
    - `choices=[...]` w walidacjach: zamknięta lista, wpisujesz tylko te wartości,
-   - `metaobject_reference` / `list.metaobject_reference` (np. `shopify.*`, cechy kategorii Shopify): **nie przez arkusz**, to odwołania do słownika. Tylko odczyt, zmiany: Igor.
+   - `metaobject_reference` / `list.metaobject_reference` (np. `shopify.*`, cechy kategorii Shopify): **nie przez arkusz**, to odwołania do słownika. Zapis pojedynczo przez `metafieldsSet` z gid wpisów słownika (najpierw odczytaj, jakie wpisy już istnieją), po zgodzie.
 4. **Słownik wartości**: zanim wpiszesz nową wartość, pobierz wartości już używane w tym polu (eksport całej kategorii)
    i trzymaj się ich pisowni. Nowa wartość (której nikt jeszcze nie użył) wymaga zgody użytkownika, bo tworzy nową pozycję w filtrze.
    Przykład z audytu: w polach Tak/Nie (indukcja, zmywarka, hermetyczny) używa się „Tak” / „Nie”; sprawdź to w eksporcie, zanim założysz.
@@ -62,6 +62,14 @@ mutation Cechy($metafields: [MetafieldsSetInput!]!) {
   }
 }
 ```
+
+## Nowe pole (definicja metapola)
+
+Tworzenie lub zmiana definicji (`metafieldDefinitionCreate` / `Update`) jest możliwe za zgodą, ale wpływa na cały sklep:
+- najpierw sprawdź, czy podobne pole już nie istnieje (duplikaty PL/EN to obecny problem sklepu),
+- nazwa po polsku, klucz bez polskich znaków, typ dobrany do filtra (tekst albo lista tekstów filtrują każdą wartość osobno), przy zamkniętej liście wartości walidacja `choices`,
+- nowe pole nie wyświetli się samo na karcie produktu: wyświetlenie to zmiana w szablonie (skill `zmiany-w-szablonie`),
+- po zmianie uruchom ponownie `python scripts/struktura_sklepu.py`.
 
 ## Filtry w kategorii
 

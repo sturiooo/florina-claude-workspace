@@ -45,7 +45,7 @@ Format:
 ```
 
 Na początku każdej sesji, w której zmieniasz dane danego rodzaju, przejrzyj `dziennik/lekcje.md` (szukaj po temacie).
-Lekcje, które powinny trafić do skilli na stałe, zbiera Igor przy przeglądzie (skille są zablokowane do edycji przez Claude).
+Lekcje, które powinny trafić do skilli na stałe, zbiera Igor przy przeglądzie (Claude nie edytuje skilli ani CLAUDE.md).
 
 ## Na koniec sesji
 

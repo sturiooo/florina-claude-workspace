@@ -50,7 +50,7 @@ Write-Host "Instalacja srodowiska Claude Code: sklep Florina" -ForegroundColor W
 Write-Host "Folder projektu: $Projekt"
 
 # ---------------------------------------------------------------------------
-Krok "1/8 Sprawdzam winget (instalator programow Windows)"
+Krok "1/10 Sprawdzam winget (instalator programow Windows)"
 if (-not (Get-Command winget -ErrorAction SilentlyContinue)) {
   Write-Host "Brak winget. Zainstaluj 'Instalator aplikacji' (App Installer) ze sklepu Microsoft Store i uruchom skrypt ponownie." -ForegroundColor Red
   exit 1
@@ -58,7 +58,7 @@ if (-not (Get-Command winget -ErrorAction SilentlyContinue)) {
 Ok "winget jest"
 
 # ---------------------------------------------------------------------------
-Krok "2/8 Programy bazowe: Git, Node.js LTS, Python 3"
+Krok "2/10 Programy bazowe: Git, Node.js LTS, Python 3"
 Winget-Zainstaluj "Git.Git" "Git"
 Winget-Zainstaluj "OpenJS.NodeJS.LTS" "Node.js LTS"
 Odswiez-Path
@@ -73,7 +73,7 @@ if (-not (Jest "python")) {
 if (-not (Jest "node")) { Uwaga "Komenda 'node' nie dziala. Otworz nowe okno PowerShell i uruchom skrypt ponownie." }
 
 # ---------------------------------------------------------------------------
-Krok "3/8 Shopify CLI"
+Krok "3/10 Shopify CLI"
 if (Jest "shopify") { Ok "Shopify CLI juz jest ($(shopify version 2>$null))" }
 elseif (Jest "npm") {
   Info "Instaluje Shopify CLI (npm install -g @shopify/cli)..."
@@ -84,7 +84,7 @@ elseif (Jest "npm") {
 else { Uwaga "Brak npm (Node.js). Shopify CLI nie zostal zainstalowany." }
 
 # ---------------------------------------------------------------------------
-Krok "4/8 Claude Code (instalator natywny Anthropic)"
+Krok "4/10 Claude Code (instalator natywny Anthropic)"
 if (Jest "claude") { Ok "Claude Code juz jest ($(claude --version 2>$null))" }
 else {
   Info "Instaluje Claude Code (irm https://claude.ai/install.ps1 | iex)..."
@@ -106,7 +106,7 @@ if ((Test-Path $lokalnyBin) -and ($pathUz -notlike "*$lokalnyBin*")) {
 }
 
 # ---------------------------------------------------------------------------
-Krok "5/8 Rozszerzenie Claude Code w VS Code"
+Krok "5/10 Rozszerzenie Claude Code w VS Code"
 if ($BezRozszerzenia) { Info "Pominiete (-BezRozszerzenia)" }
 else {
   $code = (Get-Command code -ErrorAction SilentlyContinue).Source
@@ -127,25 +127,47 @@ else {
 }
 
 # ---------------------------------------------------------------------------
-Krok "6/8 Pliki projektu (.env i katalogi robocze)"
+Krok "6/10 Wtyczka Shopify AI Toolkit i dokumentacja Shopify (MCP)"
+if (Jest "claude") {
+  $wtyczki = claude plugin list 2>$null | Out-String
+  if ($wtyczki -match "shopify-plugin@shopify-ai-toolkit") { Ok "Wtyczka Shopify AI Toolkit juz jest" }
+  else {
+    Info "Dodaje katalog wtyczek Shopify/shopify-ai-toolkit i instaluje shopify-plugin (zakres: lokalny, plik .claude/settings.local.json)..."
+    claude plugin marketplace add Shopify/shopify-ai-toolkit
+    claude plugin install shopify-plugin@shopify-ai-toolkit --scope local
+    if ($LASTEXITCODE -eq 0) { Ok "Wtyczka zainstalowana" } else { Uwaga "Wtyczka sie nie zainstalowala. W Claude wpisz /plugins i zainstaluj shopify-plugin z shopify-ai-toolkit (INSTALACJA.md, krok 5)." }
+  }
+} else { Uwaga "Bez komendy claude nie zainstaluje wtyczki. Zrob to pozniej w VS Code: /plugins (INSTALACJA.md, krok 5)." }
+if (Jest "npx") { Ok "npx jest: serwer dokumentacji shopify-dev (plik .mcp.json) uruchomi sie po zaufaniu folderowi" }
+else { Uwaga "Brak npx (Node.js). Serwer dokumentacji shopify-dev nie wystartuje." }
+
+# ---------------------------------------------------------------------------
+Krok "7/10 Biblioteki Pythona dla narzedzi SEO (seo/requirements.txt)"
+if (Jest "python") {
+  python -m pip install --user --disable-pip-version-check -q -r "seo\requirements.txt"
+  if ($LASTEXITCODE -eq 0) { Ok "requests, beautifulsoup4, lxml zainstalowane" } else { Uwaga "pip nie zainstalowal bibliotek SEO. Sprobuj: python -m pip install --user -r seo\requirements.txt" }
+} else { Uwaga "Bez Pythona narzedzia SEO nie dzialaja." }
+
+# ---------------------------------------------------------------------------
+Krok "8/10 Pliki projektu (.env i katalogi robocze)"
 if (-not (Test-Path ".env")) {
   Copy-Item ".env.example" ".env"
   Ok "Utworzono .env z .env.example (uzupelnij BASELINKER_TOKEN, patrz INSTALACJA.md krok 7)"
 } else { Ok ".env juz jest (nie nadpisuje)" }
-foreach ($k in @("backup", "raporty", "robocze", "robocze\media", "robocze\opisy", "robocze\faq", "dziennik", "docs")) {
+foreach ($k in @("backup", "raporty", "raporty\seo", "robocze", "robocze\media", "robocze\opisy", "robocze\faq", "robocze\szablon", "robocze\blog", "dziennik", "docs")) {
   if (-not (Test-Path $k)) { New-Item -ItemType Directory -Path $k | Out-Null }
 }
 Ok "Katalogi: backup, raporty, robocze, dziennik, docs"
 
 # ---------------------------------------------------------------------------
-Krok "7/8 Test zabezpieczen (straznik zmian)"
+Krok "9/10 Test zabezpieczen (straznik zmian)"
 if (Jest "python") {
   python ".claude\hooks\test_straznik.py" | Select-Object -Last 1
   if ($LASTEXITCODE -eq 0) { Ok "Straznik dziala poprawnie" } else { Uwaga "Testy straznika nie przeszly. NIE uzywaj projektu, zadzwon do Igora." }
 } else { Uwaga "Bez Pythona straznik nie dziala, a Claude Code zablokuje komendy. Najpierw napraw Pythona." }
 
 # ---------------------------------------------------------------------------
-Krok "8/8 Wersje"
+Krok "10/10 Wersje"
 foreach ($c in @("git --version", "node --version", "npm --version", "python --version", "shopify version", "claude --version", "gh --version")) {
   $nazwa = $c.Split(" ")[0]
   if (Jest $nazwa) {
@@ -164,11 +186,13 @@ Write-Host @"
 ==================== DALSZE KROKI ====================
 1. Zamknij to okno. Otworz VS Code: Plik > Otworz folder > $Projekt
 2. Kliknij ikone Claude (iskierka) na pasku bocznym albo Ctrl+Esc i zaloguj sie kontem Claude
-   (Pro / Max / Team). W terminalu VS Code mozna tez wpisac: claude
+   (Pro / Max / Team). Na pytanie, czy ufasz temu folderowi: TAK. Na pytanie o serwer MCP shopify-dev: zatwierdz.
+   W okienku Claude wpisz /mcp (shopify-dev: connected) i /plugins (shopify-plugin: zainstalowany).
 3. Logowanie do sklepu (JEDEN RAZ, w terminalu VS Code, wklej w calosci):
-   shopify store auth --store florina-pl.myshopify.com --scopes read_products,write_products,read_files,write_files,read_metaobjects,write_metaobjects,read_metaobject_definitions,read_inventory,read_orders,read_translations,write_translations,read_locales
+   shopify store auth --store florina-pl.myshopify.com --scopes read_products,write_products,read_inventory,write_inventory,read_locations,read_orders,write_orders,read_order_edits,write_order_edits,read_draft_orders,write_draft_orders,read_customers,write_customers,read_discounts,write_discounts,read_content,write_content,read_online_store_pages,write_online_store_pages,read_online_store_navigation,write_online_store_navigation,read_publications,write_publications,read_files,write_files,read_metaobjects,write_metaobjects,read_metaobject_definitions,write_metaobject_definitions,read_translations,write_translations,read_locales,read_themes,write_themes,read_reports
    Otworzy sie przegladarka: zaloguj sie WLASNYM kontem pracownika sklepu i zatwierdz.
 4. Klucz BaseLinkera: otworz plik .env w VS Code i wklej token po BASELINKER_TOKEN=  (zapisz Ctrl+S).
 5. W okienku Claude napisz: "Uruchom rozpoznanie struktury sklepu" (zrobi docs/struktura-sklepu.md).
+6. Zmiany w wygladzie sklepu wgrywasz Ty: Claude poda komende, wklejasz ja w terminalu VS Code.
 Szczegoly: INSTALACJA.md
 "@ -ForegroundColor White

@@ -7,7 +7,7 @@ description: Sprawdzanie rozbieżności między BaseLinkerem (Base.com) a Shopif
 
 **W Base niczego nie zmieniamy.** Ani przez API, ani przez przeglądarkę. Skrypt ma listę wyłącznie metod odczytu (`get...`),
 a strażnik blokuje każdą metodę zapisującą. Naprawę rozbieżności robi człowiek w panelu Base lub Shopify po decyzji, gdzie leży prawda,
-a zmiany cen i stanów w Shopify robi Igor (blokada w tym projekcie).
+a zmiany cen i stanów w Shopify są możliwe tylko po zgodzie użytkownika i z ostrzeżeniem: jeśli Base synchronizuje stany lub ceny do Shopify, nadpisze ręczną zmianę przy najbliższej synchronizacji. Zanim zaproponujesz poprawkę w Shopify, ustal z użytkownikiem, który system jest źródłem prawdy.
 
 ## Klucz API
 

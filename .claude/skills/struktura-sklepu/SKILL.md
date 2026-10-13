@@ -37,7 +37,7 @@ dozwolonych wartości), definicje metaobiektów (np. FAQ) z próbkami wpisów, m
   `w-przecenie`, `pazdziernik-w-kuchni`. Część kolekcji automatycznych i promocji działa na tagach.
 - **Opisy produktów** po migracji z IdoSell miejscami zawierają wklejony kod CSS (np. `.tresc100 { ... }`, `#projector_longdescription`),
   który wycieka jako tekst na kartach w listingu. To jest znany problem do sprzątania (skill `opisy-produktow-i-kategorii`).
-- **Kategoria produktu Shopify** (taksonomia) jest ustawiona na 100% produktów i decyduje o stawce VAT: nie zmieniamy jej.
+- **Kategoria produktu Shopify** (taksonomia) jest ustawiona na 100% produktów i decyduje o stawce VAT: zmieniaj tylko na wyraźną prośbę, z ostrzeżeniem o VAT.
 
 ## Co wiemy z audytu Igora (31.08 i 06.10.2026, może być nieaktualne)
 
@@ -53,7 +53,7 @@ dozwolonych wartości), definicje metaobiektów (np. FAQ) z próbkami wpisów, m
   nie miała odpowiednika w spisie z 31.08: definicje doszły przy przebudowie sklepu. Sprawdź je w `docs/struktura-sklepu.md`.
 - Metapola `shopify.*` (np. `shopify.color-pattern`, `shopify.cookware-bakeware-material`, `shopify.compatible-stove-top-type`)
   to **cechy kategorii Shopify** oparte o słownik (metaobiekty taksonomii). Nie wpisuje się do nich tekstu, tylko
-  odwołania do wpisów słownika. Na razie: tylko odczyt, zmiany przez Igora.
+  odwołania do wpisów słownika. Zapis tylko pojedynczo, z gid istniejących wpisów, po zgodzie (skill `ocechowanie-metapola`).
 - `reviews.*` (oceny) i `mm-google-shopping.*` zapisują aplikacje: nie ruszamy.
 
 ## Jak czytać `docs/struktura-sklepu.md`

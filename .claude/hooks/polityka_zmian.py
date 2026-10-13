@@ -1,108 +1,68 @@
 #!/usr/bin/env python3
-"""Polityka zmian w sklepie Florina: JEDNO miejsce, ktore decyduje, jakie mutacje Admin API sa dozwolone.
+"""Polityka zmian w sklepie Florina: JEDNO miejsce, ktore decyduje, jakie mutacje Admin API wolno wykonac.
 
-Uzywaja jej dwa mechanizmy:
-  1. hook PreToolUse (.claude/hooks/straznik.py) zanim Claude Code uruchomi komende,
+Uzywaja jej:
+  1. hook PreToolUse (.claude/hooks/straznik.py), zanim Claude Code uruchomi komende,
   2. scripts/shopify_gql.py w chwili faktycznego wyslania zapytania do Shopify.
 
-Zasada: LISTA DOZWOLONYCH. Mutacja spoza listy jest blokowana, nawet jesli nikt jej tu nie przewidzial.
-Zmiany w tym pliku robi tylko Igor (Claude ma zablokowana edycje katalogu .claude/hooks).
+Zasada (decyzja Igora, 14.10.2026): "praktycznie wszystko poza edycja szablonu".
+  - ZAKAZ:  motyw / szablon (theme*), ustawienia sklepu, platnosci, operacje finansowe (zwroty, pobrania,
+            anulowanie), rynki i dostawy, aplikacje i webhooki, pracownicy, operacje masowe w tle, karty podarunkowe.
+            Zmiany motywu robi czlowiek sciezka "!" (skill zmiany-w-szablonie, scripts/szablon_wgraj.py).
+  - USUN:   kazde usuwanie (*Delete, *Remove, *Unpublish...) -> pytanie z twardym ostrzezeniem + obowiazkowy backup.
+  - PYTAJ:  cala reszta (produkty, warianty, ceny, stany, publikacja, kolekcje i reguly, metapola i definicje,
+            metaobiekty i definicje, rabaty, strony, blog, nawigacja, przekierowania, tlumaczenia, pliki, klienci,
+            zamowienia: edycja, tagi, notatki).
+Zmiany w tym pliku robi tylko Igor (Claude ma zablokowana edycje .claude/).
 """
 import re
 
-# Mutacje, ktore osoba obslugujaca sklep moze wykonac (zawsze PO potwierdzeniu w oknie Claude Code).
-DOZWOLONE_MUTACJE = {
-    # opisy, tagi, SEO produktu (bez statusu, uchwytu, kategorii: patrz ZAKAZANE_POLA)
-    "productUpdate",
-    "tagsAdd",
-    "tagsRemove",
-    # kolekcje: tylko przypisanie produktow i opis
-    "collectionAddProducts",
-    "collectionAddProductsV2",
-    "collectionRemoveProducts",
-    "collectionReorderProducts",
-    "collectionUpdate",
-    # ocechowanie i FAQ
-    "metafieldsSet",
-    "metaobjectCreate",
-    "metaobjectUpdate",
-    # media
-    "stagedUploadsCreate",
-    "fileCreate",
-    "fileUpdate",
-    "productCreateMedia",
-    "productUpdateMedia",
-    "productReorderMedia",
-    "productVariantAppendMedia",
-    # tlumaczenia (opcjonalnie, wymaga scope write_translations)
-    "translationsRegister",
-}
-
-# Czytelne powody dla najczestszych zakazanych operacji (reszta dostaje komunikat ogolny).
+# Zakazane zawsze (wzorzec nazwy mutacji, powod). Pierwszy pasujacy wygrywa.
 ZAKAZANE_WZORCE = [
-    (r"Delete", "usuwanie danych"),
-    (r"(?<!collection)Remove(?!Products)", "usuwanie danych"),
-    (r"^(productCreate|productDuplicate|productSet|productChangeStatus)$", "tworzenie lub nadpisywanie calych produktow"),
-    (r"^productVariant", "warianty, ceny i stany magazynowe"),
-    (r"^inventory", "stany magazynowe"),
-    (r"^priceList|^quantityPricing|^quantityRules", "cenniki"),
-    (r"^discount|^giftCard", "rabaty i karty podarunkowe"),
-    (r"^theme|^onlineStoreTheme", "motyw i kod sklepu"),
-    (r"^order|^draftOrder|^refund|^return|^fulfillment|^reverse", "zamowienia, zwroty i wysylki"),
-    (r"^customer|^company", "klienci i firmy B2B"),
-    (r"^payment|^shopPolicy|^shopLocale|^market|^delivery|^location|^webPresence", "ustawienia sklepu"),
-    (r"^publishable|^publication", "widocznosc w kanalach sprzedazy"),
-    (r"^bulkOperation", "operacje masowe w tle"),
-    (r"^metafieldDefinition|^metaobjectDefinition|^standardMetafield|^standardMetaobject", "struktura metapol i metaobiektow"),
-    (r"^collectionCreate|^collectionDuplicate", "tworzenie kolekcji (decyzja Igora)"),
-    (r"^urlRedirect|^menu", "przekierowania i nawigacja"),
-    (r"^webhook|^app|^eventBridge|^pubSub", "integracje i aplikacje"),
-    (r"^sellingPlan|^subscription", "subskrypcje"),
-    (r"^translationsRemove", "usuwanie tlumaczen"),
+    (r"^theme|^onlineStoreTheme", "zmiana motywu / szablonu: to robi czlowiek sciezka `!` (skill zmiany-w-szablonie)"),
+    (r"^shop[A-Z]|^shopifyPayments", "ustawienia sklepu (dane sklepu, jezyki, polityki, Shopify Payments)"),
+    (r"[Pp]ayment", "platnosci"),
+    (r"^refund|^returnRefund|^orderCapture|^transaction|^orderCancel|^orderMarkAsPaid|^suggestedRefund",
+     "operacje finansowe na zamowieniach (zwroty, pobrania, anulowanie)"),
+    (r"^market|^webPresence|^delivery|^location|^carrierService|^fulfillmentService|^backupRegion",
+     "ustawienia rynkow, dostaw i lokalizacji"),
+    (r"^app[A-Z]|^webhook|^eventBridge|^pubSub|^storefrontAccessToken|^scriptTag|^webPixel|^serverPixel",
+     "aplikacje, integracje i skrypty"),
+    (r"^staff|^checkoutBranding|^checkoutProfile|^validation|^cartTransform|^consentPolicy",
+     "pracownicy i ustawienia kasy"),
+    (r"^bulkOperation", "operacje masowe w tle (omijaja limit partii i backup)"),
+    (r"^giftCard", "karty podarunkowe (pieniadze)"),
 ]
 
-# Pola, ktorych NIE wolno ustawiac nawet w dozwolonej mutacji.
-ZAKAZANE_POLA = {
-    "productUpdate": {
-        "status": "zmiana statusu (aktywny / wersja robocza / zarchiwizowany) ukrywa produkt",
-        "handle": "zmiana uchwytu psuje adres URL i pozycje w Google",
-        "redirectNewHandle": "zmiana uchwytu psuje adres URL",
-        "category": "kategoria produktu decyduje o stawce VAT",
-        "templateSuffix": "zmiana szablonu to zmiana wygladu (motyw)",
-        "giftCard": "karta podarunkowa",
-        "requiresSellingPlan": "subskrypcje",
-        "variants": "warianty i ceny",
-        "collectionsToLeave": "wypisywanie z kolekcji rob przez collectionRemoveProducts, po jednej kolekcji",
-    },
-    "collectionUpdate": {
-        "handle": "zmiana uchwytu psuje adres URL kolekcji",
-        "redirectNewHandle": "zmiana uchwytu psuje adres URL kolekcji",
-        "ruleSet": "zmiana regul kolekcji automatycznej przenosi setki produktow naraz",
-        "sources": "zmiana regul kolekcji automatycznej przenosi setki produktow naraz",
-        "templateSuffix": "zmiana szablonu to zmiana wygladu (motyw)",
-        "products": "przypisania produktow rob przez collectionAddProducts",
-    },
+# Usuwanie: dozwolone z twardym ostrzezeniem i backupem wszystkiego, czego dotyczy.
+USUWANIE = re.compile(r"Delete|Remove|Unpublish|Destroy|Detach")
+NIE_USUWANIE = {"tagsRemove"}  # zdjecie tagu: odwracalne, zwykla zmiana
+
+# Ostrzezenia dopisywane do okna zgody, gdy w zmianie sa te pola.
+OSTRZEZENIA_POL = {
+    "handle": "zmiana uchwytu zmienia adres URL (sprawdz przekierowanie)",
+    "status": "zmiana statusu moze ukryc albo pokazac produkt / rabat",
+    "category": "kategoria produktu decyduje o stawce VAT",
+    "price": "zmiana ceny",
+    "compareAtPrice": "zmiana ceny przekreslonej",
+    "ruleSet": "zmiana regul kolekcji automatycznej przenosi wiele produktow naraz",
+    "quantities": "zmiana stanow magazynowych (BaseLinker moze je nadpisac przy synchronizacji)",
+    "templateSuffix": "zmiana szablonu strony (wyglad)",
 }
 
-# Typy obiektow, ktorych identyfikatory (gid) moga sie pojawic w zmianie.
-DOZWOLONE_GID = {
-    "Product", "ProductVariant", "Collection", "Metaobject",
-    "MediaImage", "Video", "ExternalVideo", "GenericFile", "Model3d", "ProductImage",
-    "Metafield",  # tylko jako cel tlumaczenia (translationsRegister); usuwanie metapol blokuje lista nazw
-}
+# Typy obiektow, ktorych nie wolno zmieniac nawet "przy okazji".
+ZAKAZANE_GID = {"OnlineStoreTheme", "OnlineStoreThemeFile", "Shop", "Location", "Market", "StaffMember", "App", "AppInstallation"}
 
-# Przestrzenie metapol zarezerwowane dla aplikacji (opinie, feed Google): nie zapisujemy recznie.
-ZAKAZANE_PRZESTRZENIE = ["reviews", "judgeme", "mm-google-shopping", "shopify--discovery"]
+# Metapola zapisywane przez aplikacje: ostrzegamy.
+PRZESTRZENIE_APEK = ["reviews", "judgeme", "mm-google-shopping", "shopify--discovery"]
 
-# Maksymalna liczba roznych obiektow w jednej zmianie (male partie).
-MAKS_OBIEKTOW = 60
+MAKS_OBIEKTOW = 250
 
-# Metody BaseLinkera: wolno tylko czytac (get...).
+# BaseLinker: wolno tylko czytac (get...).
 BL_ZAPIS = re.compile(r"""["'=]\s*((?:add|set|update|delete|create|run|unlink|move|send)[A-Z]\w*)""")
 
 
 def _pomin_napis(t, i):
-    """t[i] == '"'. Zwraca indeks za koncem napisu GraphQL (zwyklego albo blokowego)."""
     if t.startswith('"""', i):
         j = t.find('"""', i + 3)
         return len(t) if j < 0 else j + 3
@@ -118,7 +78,6 @@ def _pomin_napis(t, i):
 
 
 def _pomin_nawiasy(t, i):
-    """t[i] == '('. Zwraca indeks za domknieciem nawiasu (z pominieciem napisow)."""
     glebokosc = 0
     j = i
     while j < len(t):
@@ -137,11 +96,10 @@ def _pomin_nawiasy(t, i):
 
 
 def nazwy_mutacji(tekst):
-    """Zwraca liste pol najwyzszego poziomu we wszystkich operacjach `mutation` w tekscie."""
+    """Lista pol najwyzszego poziomu we wszystkich operacjach `mutation` w tekscie (aliasy rozwiniete)."""
     wynik = []
     for m in re.finditer(r"\bmutation\b", tekst):
         j = m.end()
-        # pomin nazwe operacji i definicje zmiennych az do pierwszego '{'
         while j < len(tekst) and tekst[j] != "{":
             if tekst[j] == "(":
                 j = _pomin_nawiasy(tekst, j)
@@ -176,7 +134,7 @@ def nazwy_mutacji(tekst):
                 n = re.match(r"[A-Za-z_]\w*", tekst[k:]).group(0)
                 k += len(n)
                 reszta = tekst[k:].lstrip()
-                if reszta.startswith(":"):  # alias: pole
+                if reszta.startswith(":"):
                     k = len(tekst) - len(reszta) + 1
                     m2 = re.match(r"\s*([A-Za-z_]\w*)", tekst[k:])
                     if m2:
@@ -189,68 +147,69 @@ def nazwy_mutacji(tekst):
     return wynik
 
 
-def ocen_mutacje(tekst):
-    """Ocena tekstu zawierajacego GraphQL (i ewentualnie zmienne JSON).
+def czy_usuwanie(nazwa):
+    return nazwa not in NIE_USUWANIE and bool(USUWANIE.search(nazwa))
 
-    Zwraca (decyzja, powody, nazwy):
-      decyzja = "brak"   -> tekst nie zawiera mutacji,
-                "pytaj"  -> mutacja dozwolona, wymaga potwierdzenia czlowieka,
-                "zakaz"  -> mutacja zablokowana.
+
+def ocen_mutacje(tekst):
+    """Zwraca (decyzja, powody, nazwy, ostrzezenia).
+
+    decyzja: "brak" (nie ma mutacji), "pytaj" (zwykla zmiana), "usun" (usuwanie), "zakaz".
     """
     nazwy = nazwy_mutacji(tekst)
     if not nazwy:
-        return "brak", [], []
-    powody = []
+        return "brak", [], [], []
+    powody, ostrzezenia = [], []
+    usuwanie = False
     for n in nazwy:
-        if n in DOZWOLONE_MUTACJE:
-            continue
-        opis = None
-        for wzorzec, o in ZAKAZANE_WZORCE:
-            if re.search(wzorzec, n):
-                opis = o
-                break
         if n.startswith("?"):
             powody.append("Nie umiem odczytac tresci mutacji, wiec jej nie przepuszczam. Zapisz ja w pliku .graphql i uzyj scripts/shopify_gql.py.")
-        elif opis:
-            powody.append(f"`{n}` jest zablokowane ({opis}). Taka zmiane robi Igor.")
+            continue
+        for wzorzec, opis in ZAKAZANE_WZORCE:
+            if re.search(wzorzec, n):
+                powody.append(f"`{n}` jest zablokowane: {opis}.")
+                break
         else:
-            powody.append(f"`{n}` nie jest na liscie dozwolonych zmian. Jesli jest potrzebna, zapytaj Igora.")
-    for n in set(nazwy):
-        for pole, dlaczego in ZAKAZANE_POLA.get(n, {}).items():
-            if re.search(r'(?<![\w$])"?' + re.escape(pole) + r'"?\s*:', tekst):
-                powody.append(f"`{n}` z polem `{pole}` jest zablokowane: {dlaczego}.")
+            if czy_usuwanie(n):
+                usuwanie = True
     typy = set(re.findall(r"gid://shopify/([A-Za-z0-9]+)/", tekst))
-    zle = sorted(t for t in typy if t not in DOZWOLONE_GID)
+    zle = sorted(typy & ZAKAZANE_GID)
     if zle:
-        powody.append("Zmiana dotyczy obiektow, ktorych nie wolno zmieniac: " + ", ".join(zle) + " (np. zamowienia, klienci, ustawienia).")
-    for p in ZAKAZANE_PRZESTRZENIE:
-        if re.search(r'namespace"?\s*:\s*\\?"' + re.escape(p), tekst):
-            powody.append(f"Metapola z przestrzeni `{p}` zapisuje aplikacja, nie czlowiek.")
-    obiekty = set(re.findall(r"gid://shopify/(?:Product|Collection|Metaobject|ProductVariant)/\d+", tekst))
+        powody.append("Zmiana dotyczy obiektow, ktorych nie wolno zmieniac: " + ", ".join(zle) + ".")
+    obiekty = set(re.findall(r"gid://shopify/[A-Za-z0-9]+/\d+", tekst))
     if len(obiekty) > MAKS_OBIEKTOW:
         powody.append(f"Jedna zmiana dotyczy {len(obiekty)} obiektow. Limit to {MAKS_OBIEKTOW}: podziel prace na mniejsze partie.")
     if powody:
-        return "zakaz", powody, nazwy
-    return "pytaj", [], nazwy
+        return "zakaz", powody, nazwy, []
+    for pole, opis in OSTRZEZENIA_POL.items():
+        if re.search(r'(?<![\w$])\\?"?' + re.escape(pole) + r'\\?"?\s*:', tekst):
+            ostrzezenia.append(opis)
+    for p in PRZESTRZENIE_APEK:
+        if re.search(r'namespace\\?"?\s*:\s*\\?"' + re.escape(p), tekst):
+            ostrzezenia.append(f"metapola `{p}` zwykle zapisuje aplikacja, reczna zmiana moze zostac nadpisana")
+    return ("usun" if usuwanie else "pytaj"), [], nazwy, ostrzezenia
 
 
-def opis_zmiany(nazwy, tekst):
+def opis_zmiany(nazwy, tekst, decyzja="pytaj", ostrzezenia=None):
     """Krotki, ludzki opis zmiany do okna potwierdzenia."""
     ile = {}
     for n in nazwy:
         ile[n] = ile.get(n, 0) + 1
     czesci = [f"{n} x{c}" if c > 1 else n for n, c in ile.items()]
-    obiekty = set(re.findall(r"gid://shopify/(Product|Collection|Metaobject|ProductVariant)/(\d+)", tekst))
+    obiekty = set(re.findall(r"gid://shopify/([A-Za-z0-9]+)/(\d+)", tekst))
     typy = {}
     for t, _ in obiekty:
         typy[t] = typy.get(t, 0) + 1
-    slownik = {"Product": "produkty", "Collection": "kolekcje", "Metaobject": "wpisy FAQ / metaobiekty", "ProductVariant": "warianty"}
-    obj = ", ".join(f"{slownik.get(t, t)}: {c}" for t, c in typy.items())
-    return "ZMIANA W SKLEPIE: " + ", ".join(czesci) + (f" ({obj})" if obj else "")
+    obj = ", ".join(f"{t}: {c}" for t, c in sorted(typy.items()))
+    poczatek = "UWAGA, USUWANIE W SKLEPIE (nie da sie cofnac inaczej niz z backupu): " if decyzja == "usun" else "ZMIANA W SKLEPIE: "
+    opis = poczatek + ", ".join(czesci) + (f" (obiekty: {obj})" if obj else "")
+    if ostrzezenia:
+        opis += ". Uwaga: " + "; ".join(dict.fromkeys(ostrzezenia))
+    return opis
 
 
 def ocen_baselinker(tekst):
-    """Zwraca liste zakazanych metod BaseLinkera (zapis) znalezionych w tekscie."""
+    """Lista zakazanych metod BaseLinkera (zapis) znalezionych w tekscie."""
     if not re.search(r"baselinker|connector\.php", tekst, re.I):
         return []
     return sorted(set(BL_ZAPIS.findall(tekst)))

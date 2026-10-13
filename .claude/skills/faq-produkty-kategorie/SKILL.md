@@ -31,7 +31,7 @@ Jak to ustalić (tylko odczyt):
 
 Wynik zapisz w `dziennik/lekcje.md` (sekcja „FAQ: struktura”), żeby następnym razem nie sprawdzać od nowa.
 Jeśli coś nie pasuje do opisu wyżej (np. FAQ siedzi w blokach motywu, a nie w metaobiektach): **zatrzymaj się i powiedz Igorowi**,
-bo wtedy zmiana FAQ to zmiana motywu (zablokowana).
+bo wtedy zmiana FAQ to zmiana w szablonie (skill `zmiany-w-szablonie`, wgrywa człowiek).
 
 ## Dopisanie pytań do kategorii
 
@@ -62,8 +62,8 @@ Pamiętaj: wpis może być podpięty pod **kilka kategorii** (te same pytania). 
 
 ## Usuwanie pytania
 
-Usuwanie wpisów jest zablokowane. Pytanie można **odpiąć** od kategorii (zapis listy bez tego id, po zgodzie i backupie).
-Sam wpis zostaje w bazie; jego usunięcie robi Igor.
+Najpierw **odepnij** pytanie od kategorii (zapis listy bez tego id, po zgodzie i backupie). Wpis zostaje wtedy w bazie i można go przypiąć z powrotem.
+Usunięcie samego wpisu (`metaobjectDelete`) jest możliwe za zgodą, z backupem (`--metaobiekt <gid>`) i tylko gdy wpis nie jest podpięty pod żadną inną kategorię (sprawdź to przed usunięciem).
 
 ## Jak pisać pytania i odpowiedzi
 

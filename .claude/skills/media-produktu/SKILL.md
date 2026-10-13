@@ -16,7 +16,7 @@ Narzędzie: `scripts/upload_mediow.py` (domyślnie tylko podgląd; zapis z `--al
 - YouTube / Vimeo: sam link, film nie jest kopiowany do Shopify.
 
 Przed wgraniem obejrzyj listę plików i porównaj z prośbą (czy to na pewno ten produkt, ten kolor, ten rozmiar).
-Zdjęcie innego wariantu na karcie produktu to częsty błąd, a usuwania mediów nie zrobisz sam (blokada).
+Zdjęcie innego wariantu na karcie produktu to częsty błąd, a usunięcie pliku jest nieodwracalne (zostaje tylko adres w backupie).
 
 ## Teksty alternatywne (alt)
 
@@ -50,6 +50,6 @@ Galeria per wariant (wiele zdjęć na kolor) zależy od motywu: **DO POTWIERDZEN
 
 ## Czego nie robisz
 
-- nie usuwasz mediów (blokada; prośba o usunięcie idzie do Igora z listą: produkt, które zdjęcie, dlaczego),
+- nie usuwasz mediów bez wyraźnej prośby; usunięcie (`productDeleteMedia` albo `fileDelete`) tylko z listą do akceptacji, backupem produktu (`--handle`) i ostrzeżeniem, że to nieodwracalne,
 - nie wgrywasz zdjęć, do których marka nie ma praw (zdjęcia konkurencji, z Google Grafika),
 - nie wgrywasz wideo do biblioteki plików „na zapas”: zawsze do konkretnego produktu.

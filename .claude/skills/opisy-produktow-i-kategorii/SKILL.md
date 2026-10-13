@@ -45,7 +45,7 @@ Jak sprzątać:
 
 ## Czego nie robisz
 
-- nie zmieniasz tytułu produktu ani uchwytu (adresu URL) przy okazji opisu; zmiana tytułu tylko na wyraźną prośbę, uchwytu nigdy,
+- nie zmieniasz tytułu produktu ani uchwytu (adresu URL) przy okazji opisu; tytuł tylko na wyraźną prośbę; uchwyt wyłącznie na wyraźną prośbę, z przekierowaniem 301 ze starego adresu (`redirectNewHandle: true`) i ostrzeżeniem, że Google musi przeindeksować stronę,
 - nie wstawiasz skryptów, stylów, `iframe` ani klas CSS do opisów,
 - nie kopiujesz opisów producentów i konkurencji 1:1 (treść zduplikowana),
 - nie obiecujesz w opisie rzeczy, których nie potwierdzają dane (gwarancja, certyfikaty, „bez PFOA”), dopóki użytkownik ich nie poda.

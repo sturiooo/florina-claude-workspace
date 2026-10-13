@@ -21,7 +21,7 @@ Gdy użytkownik prosi „dodaj do kategorii X”, a X jest automatyczna:
 2. zaproponuj nadanie tagu z reguły,
 3. sprawdź, **do jakich innych kolekcji ten sam tag wciągnie produkt** (przeszukaj reguły wszystkich kolekcji w `docs/struktura-sklepu.md`). Powiedz to użytkownikowi przed zgodą.
 
-Reguł kolekcji automatycznych **nie zmieniamy** (blokada). Tworzenia nowych kolekcji też nie (decyzja Igora).
+Zmiana reguł kolekcji automatycznej i tworzenie nowej kolekcji są możliwe za zgodą, ale to zmiany struktury: przed zgodą pokaż, ile produktów wejdzie lub wypadnie (policz wyszukiwaniem po nowej regule), czy kolekcja ma trafić do menu i czy nie dubluje istniejącej. Nowa kolekcja startuje nieopublikowana, publikacja to osobny krok.
 
 ## Wyszukiwanie produktów (składnia `query`)
 

@@ -1,0 +1,3 @@
+# Biblioteki Pythona dla narzedzi SEO (skrypty w scripts/ ich nie potrzebuja).
+# Instaluje je install.ps1: python -m pip install --user -r seo/requirements.txt
+-r seo/requirements.txt

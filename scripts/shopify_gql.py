@@ -11,8 +11,8 @@ ODCZYT:
 ZMIANA W SKLEPIE (tylko po zgodzie uzytkownika, po backupie):
   python scripts/shopify_gql.py --query-file robocze/zmiana.graphql --variable-file robocze/zmienne.json --allow-mutations
 
-Skrypt sam pilnuje zasad (lista dozwolonych mutacji w .claude/hooks/polityka_zmian.py),
-wymaga dzisiejszego backupu kazdego zmienianego produktu / kolekcji / wpisu FAQ (backup/RRRR-MM-DD/)
+Skrypt sam pilnuje zasad (.claude/hooks/polityka_zmian.py: motyw i ustawienia zablokowane, reszta za zgoda),
+wymaga dzisiejszego backupu kazdego zmienianego obiektu, a przy usuwaniu kazdego obiektu w zmianie (backup/RRRR-MM-DD/)
 i zapisuje kazda zmiane w dziennik/zmiany.log.
 """
 import argparse
@@ -32,7 +32,11 @@ from wspolne import PROJEKT, dzis, sklep, wersja_api_domyslna  # noqa: E402
 sys.path.insert(0, os.path.join(PROJEKT, ".claude", "hooks"))
 from polityka_zmian import ocen_mutacje  # noqa: E402
 
-CELE = re.compile(r'"?(?:id|ownerId|productId|collectionId|resourceId)"?\s*:\s*\\?"(gid://shopify/(?:Product|Collection|Metaobject)/\d+)')
+# Obiekty, ktore zmiana modyfikuje (klucze typu id / ownerId ...). Przy usuwaniu: kazdy gid w zmianie.
+CELE = re.compile(r'\\?"?(?:id|ids|ownerId|productId|collectionId|resourceId|customerId|orderId|inventoryItemId|discountId|fileIds|productIds)\\?"?\s*:\s*\[?\s*\\?"(gid://shopify/[A-Za-z0-9]+/\d+)')
+WSZYSTKIE_GID = re.compile(r"gid://shopify/[A-Za-z0-9]+/\d+")
+# Typy, ktore sa tylko wskazaniem (nie ma czego cofac w samym obiekcie)
+BEZ_BACKUPU = {"Location", "Publication", "Channel", "TaxonomyCategory", "TaxonomyValue", "MetaobjectDefinition"}
 
 
 class BladShopify(Exception):
@@ -46,9 +50,15 @@ def _cli():
     return [sciezka]
 
 
-def _wymagany_backup(tekst):
+def _wymagany_backup(tekst, usuwanie=False):
     """Zwraca liste gid, dla ktorych brakuje dzisiejszego backupu."""
-    cele = sorted(set(CELE.findall(tekst)))
+    if usuwanie:
+        cele = set(WSZYSTKIE_GID.findall(tekst))
+    else:
+        cele = set(CELE.findall(tekst))
+        for lista in re.findall(r'(?:ids|fileIds|productIds)\\?"?\s*:\s*\[([^\]]*)\]', tekst):
+            cele |= set(WSZYSTKIE_GID.findall(lista))
+    cele = sorted(g for g in cele if g.split("/")[3] not in BEZ_BACKUPU)
     if not cele:
         return []
     zawartosc = ""
@@ -69,7 +79,7 @@ def _loguj_zmiane(nazwy, tekst, wynik, blad=None):
                 "czas": datetime.now().isoformat(timespec="seconds"),
                 "sklep": sklep(),
                 "mutacje": nazwy,
-                "obiekty": sorted(set(CELE.findall(tekst))),
+                "obiekty": sorted(set(WSZYSTKIE_GID.findall(tekst)))[:300],
                 "bledy": blad or _bledy_uzytkownika(wynik),
                 "tresc": tekst[:4000],
             }, ensure_ascii=False) + "\n")
@@ -97,16 +107,17 @@ def _bledy_uzytkownika(wynik):
 def wykonaj(zapytanie, zmienne=None, zmiany=False, wersja_api=None):
     """Wysyla zapytanie i zwraca slownik `data`. Rzuca BladShopify z czytelnym opisem."""
     tekst = zapytanie + "\n" + json.dumps(zmienne or {}, ensure_ascii=False)
-    decyzja, powody, nazwy = ocen_mutacje(tekst)
+    decyzja, powody, nazwy, _ = ocen_mutacje(tekst)
+    zmiana = decyzja in ("pytaj", "usun")
     if decyzja == "zakaz":
         raise BladShopify("ZABLOKOWANE: " + " ".join(powody))
-    if decyzja == "pytaj" and not zmiany:
+    if zmiana and not zmiany:
         raise BladShopify("To zapytanie zmienia sklep. Uruchom je z flaga --allow-mutations dopiero po zgodzie uzytkownika.")
-    if decyzja == "pytaj":
-        brak = _wymagany_backup(tekst)
+    if zmiana:
+        brak = _wymagany_backup(tekst, usuwanie=(decyzja == "usun"))
         if brak:
-            raise BladShopify("Brak dzisiejszego backupu dla: " + ", ".join(brak) +
-                              ". Najpierw: python scripts/backup_produktu.py --id <id...> (albo --kolekcja / --metaobiekt).")
+            raise BladShopify("Brak dzisiejszego backupu dla: " + ", ".join(brak[:20]) + (" ..." if len(brak) > 20 else "") +
+                              ". Najpierw: python scripts/backup_produktu.py --obiekt <gid...> (albo --id / --handle / --kolekcja / --metaobiekt).")
 
     with tempfile.TemporaryDirectory() as tmp:
         pz = os.path.join(tmp, "q.graphql")
@@ -119,7 +130,7 @@ def wykonaj(zapytanie, zmienne=None, zmiany=False, wersja_api=None):
                 json.dump(zmienne, f, ensure_ascii=False)
             cmd += ["--variable-file", pv]
         cmd += ["--version", wersja_api or wersja_api_domyslna()]
-        if decyzja == "pytaj" and zmiany:
+        if zmiana:
             cmd.append("--allow-mutations")
         p = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace")
     out = (p.stdout or "").strip()
@@ -145,12 +156,12 @@ def wykonaj(zapytanie, zmienne=None, zmiany=False, wersja_api=None):
                 opis += " | Nastepny krok: " + " ".join(e["nextSteps"])
         else:
             opis = (p.stderr or out)[-1500:]
-        if decyzja == "pytaj":
+        if zmiana:
             _loguj_zmiane(nazwy, tekst, None, blad=opis)
         if "auth" in opis.lower() or "token" in opis.lower():
             opis += "\nWyglada na brak logowania do sklepu. Uzytkownik musi wpisac w Claude Code: ! shopify store auth ... (patrz INSTALACJA.md, krok 6)."
         raise BladShopify(opis or "Nieznany blad Shopify CLI")
-    if decyzja == "pytaj":
+    if zmiana:
         _loguj_zmiane(nazwy, tekst, dane)
     return dane
 

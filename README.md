@@ -1,76 +1,83 @@
 # Florina: Claude Code workspace
 
 Paczka do pracy w sklepie **florina-pl.myshopify.com** przez Claude Code w VS Code, dla osoby nietechnicznej.
-Claude prowadzi ją przez powtarzalne zadania, a zabezpieczenia pilnują, żeby nie dało się zrobić nic poza zakresem.
+Claude prowadzi ją przez zadania w sklepie (plan, podgląd, zgoda, backup, zapis, weryfikacja), a zabezpieczenia pilnują granic.
 
 Instalacja: **[INSTALACJA.md](INSTALACJA.md)** (`install.ps1` robi większość).
 
-## Co osoba obsługująca sklep może zlecić Claude
+## Zakres (decyzja Igora, 14.10.2026): „praktycznie wszystko poza edycją szablonu”
 
-| Zadanie | Skill |
+| Obszar | Jak |
 |---|---|
-| Dodawanie produktów do kolekcji, tagowanie | `produkty-kolekcje-tagi` |
-| Opisy produktów i kategorii, meta tytuły i opisy | `opisy-produktow-i-kategorii` |
-| FAQ kategorii i produktów | `faq-produkty-kategorie` |
-| Ocechowanie (metapola, cechy do filtrów), też przez arkusz Excel | `ocechowanie-metapola` |
-| Zdjęcia i wideo na karcie produktu, teksty alternatywne | `media-produktu` |
-| Rozbieżności BaseLinker i Shopify (stany, ceny, produkty, zamówienia), tylko odczyt | `baselinker-rozbieznosci` |
-| Checklista przed zmianą, cofanie zmian | `bezpieczna-praca` |
-| Gdzie w sklepie zapisane są dane | `struktura-sklepu` |
-| Dziennik zmian i lekcje | `dziennik-zmian` |
+| Produkty, warianty, ceny, stany, status, publikacja, kolekcje i reguły, tagi | Claude, za zgodą (skille `produkty-kolekcje-tagi`, `bezpieczna-praca`) |
+| Opisy, SEO, FAQ, cechy (metapola i definicje), metaobiekty | Claude, za zgodą (`opisy-produktow-i-kategorii`, `faq-produkty-kategorie`, `ocechowanie-metapola`) |
+| Media, rabaty, strony, blog, nawigacja, przekierowania, tłumaczenia, klienci, zamówienia (edycja, tagi, notatki) | Claude, za zgodą |
+| Usuwanie czegokolwiek | Claude, za zgodą, z twardym ostrzeżeniem i obowiązkowym backupem |
+| **Motyw / szablon** (wygląd, sekcje, kod, edytor motywu) | Claude **przygotowuje**, wgrywa **człowiek** jedną komendą (`zmiany-w-szablonie`) |
+| SEO: audyt, frazy, plan, artykuły, GEO | skill `seo` + agent `seo-strateg`, toolkit w `seo/` |
+| BaseLinker | tylko odczyt i porównanie (`baselinker-rozbieznosci`) |
+| Ustawienia sklepu, płatności, zwroty i anulowanie, rynki, dostawy, aplikacje, pracownicy, karty podarunkowe, operacje masowe w tle | zablokowane |
 
-Rytm każdej zmiany (wymuszony w `CLAUDE.md` i częściowo technicznie): plan, podgląd „przed / po”, zgoda,
-backup do `backup/RRRR-MM-DD/`, próba na 1 obiekcie, partie, weryfikacja odczytem, wpis w dzienniku.
+## Dokumentacja Shopify w projekcie
 
-## Zabezpieczenia (cztery warstwy)
+- **MCP `shopify-dev`** (`.mcp.json`: `cmd /c npx -y @shopify/dev-mcp@latest`), zatwierdzony w `.claude/settings.json` (`enabledMcpjsonServers`),
+  narzędzia `mcp__shopify-dev__*` bez pytania (dokumentacja, walidacja GraphQL i Liquid).
+- **Wtyczka Shopify AI Toolkit** (`shopify-plugin@shopify-ai-toolkit`), zadeklarowana w `.claude/settings.json` (`extraKnownMarketplaces` z `autoUpdate`,
+  `enabledPlugins`), instalowana przez `install.ps1` (`claude plugin install ... --scope local`). Telemetria wyłączona (`OPT_OUT_INSTRUMENTATION`).
+- Konektor Shopify z claude.ai (`mcp__claude_ai_Shopify`) jest zablokowany: do sklepu idziemy wyłącznie przez Shopify CLI i nasze skrypty.
 
-1. **Konto pracownika w Shopify z ograniczonymi uprawnieniami** + token CLI z minimalnymi scope'ami (INSTALACJA, kroki 5 i 6). Twarda granica po stronie Shopify.
-2. **`.claude/settings.json`** (reguły Claude Code):
+## Zabezpieczenia
+
+1. **Konto pracownika w Shopify** (bez płatności, rozliczeń, pracowników) + token CLI z jawną listą scope'ów (INSTALACJA, kroki 6 i 7).
+2. **`.claude/settings.json`**:
    - **blokada**: `rm -rf` i podobne, `del /s`, `rd /s`, `format`, `git push --force`, `git reset --hard`, `git clean`,
-     `shopify theme push/publish/delete/rename/share/dev/duplicate`, `shopify app ...`, `shopify auth logout`, odczyt `.env`,
-     edycja `.claude/`, `scripts/`, `CLAUDE.md`, `install.ps1` i plików systemowych, konektor Shopify w claude.ai (`mcp__claude_ai_Shopify`),
-     tryby bez pytania (`bypassPermissions`, `auto`) wyłączone;
-   - **pytanie o zgodę**: każda komenda z `--allow-mutations` (zmiana w sklepie), `shopify store auth`, `shopify theme pull`, `git commit/push/add`, `pip`, `npm`, `winget`, `rm`, `mv`, `Remove-Item`, `Set-Content`, zapis plików poza katalogami roboczymi (także poza projektem);
-   - **bez pytania**: odczyty (Read, Grep), skrypty z `scripts/` bez `--allow-mutations`, `shopify store execute` (CLI bez flagi odrzuca mutacje), zapis w `backup/`, `raporty/`, `robocze/`, `dziennik/`.
-3. **Hook `.claude/hooks/straznik.py`** (PreToolUse dla Bash i PowerShell, przy awarii blokuje):
-   - mutacje GraphQL: **lista dozwolonych** (`productUpdate`, `tagsAdd/Remove`, `collectionAddProducts(V2)/RemoveProducts/ReorderProducts/Update`,
-     `metafieldsSet`, `metaobjectCreate/Update`, `stagedUploadsCreate`, `fileCreate/Update`, `productCreateMedia/UpdateMedia/ReorderMedia`,
-     `productVariantAppendMedia`, `translationsRegister`) wymaga potwierdzenia z opisem zmiany; **każda inna jest blokowana**
-     (w tym `*Delete`, `productCreate/Set/Duplicate`, `productVariant*`, `inventory*`, `priceList*`, `discount*`, `theme*`, `order*`,
-     `refund*`, `fulfillment*`, `customer*`, `publishable*`, `bulkOperation*`, `metafieldDefinition*`, `metaobjectDefinition*`, `collectionCreate`, `urlRedirect*`, `menu*`);
-   - zakazane pola w dozwolonych mutacjach: `productUpdate` bez `status`, `handle`, `category` (VAT), `templateSuffix`, `variants`;
-     `collectionUpdate` bez `handle`, `ruleSet`, `sources`, `templateSuffix`;
-   - zmiany tylko na produktach, wariantach, kolekcjach, metaobiektach i mediach (gid zamówień, klientów itd. = blokada);
-   - metapola aplikacji (`reviews`, `judgeme`, `mm-google-shopping`, `shopify--discovery`) zablokowane;
-   - maks. 60 obiektów w jednej zmianie;
-   - zmiany w sklepie tylko przez `scripts/shopify_gql.py`, `scripts/cechy.py`, `scripts/upload_mediow.py` (własne skrypty Claude i bezpośrednie `curl` do Admin API = blokada);
-   - BaseLinker: każda metoda zapisująca (`add*`, `set*`, `update*`, `delete*`...) zablokowana.
-4. **`scripts/shopify_gql.py`** w chwili wysyłki: ponowna kontrola tej samej polityki, **wymóg dzisiejszego backupu** każdego zmienianego produktu,
-   kolekcji i wpisu FAQ, log każdej zmiany w `dziennik/zmiany.log`, wersja API przypięta (2026-07, CLI domyślnie bierze `unstable`).
+     `shopify theme push/publish/delete/rename/share/dev/duplicate/console`, `shopify app ...`, `shopify auth logout`, uruchamianie `szablon_wgraj.py`,
+     odczyt `.env`, edycja `.claude/`, `scripts/`, `seo/`, `CLAUDE.md`, `.mcp.json`, `install.ps1`, `robocze/motyw/` i plików systemowych,
+     konektor `mcp__claude_ai_Shopify`; tryby `bypassPermissions` i `auto` wyłączone;
+   - **pytanie o zgodę**: każda komenda z `--allow-mutations`, `shopify store auth`, `shopify theme pull`, `git add/commit/push`, `pip`, `npm`, `winget`,
+     `rm`, `mv`, `Remove-Item`, `Set-Content`, zapis plików poza katalogami roboczymi;
+   - **bez pytania**: odczyty, `scripts/*` bez `--allow-mutations`, narzędzia SEO (`seo/scripts`, `seo/shopify`), MCP `shopify-dev`,
+     skrypty dokumentacji wtyczki, `WebFetch` dla florina.pl i dokumentacji, zapis w `backup/`, `raporty/`, `robocze/`, `dziennik/`.
+3. **Hook `.claude/hooks/straznik.py`** (PreToolUse dla Bash i PowerShell; przy awarii blokuje) + **`polityka_zmian.py`**:
+   - **zakaz**: `theme*` / `onlineStoreTheme*` (motyw), `shop*` (ustawienia, polityki, języki), płatności, `refund*`, `orderCancel`, `orderCapture`,
+     `transaction*`, `market*`, `delivery*`, `location*`, `app*`, `webhook*`, `staff*`, `bulkOperation*`, `giftCard*`; obiekty `OnlineStoreTheme`, `Shop`, `Location`...;
+     więcej niż 250 obiektów w jednej zmianie; zmiany poza skryptami `scripts/` (własne skrypty, `curl` do Admin API); zapis do BaseLinkera;
+     uruchomienie `scripts/szablon_wgraj.py` przez Claude;
+   - **pytanie z twardym ostrzeżeniem** („UWAGA, USUWANIE W SKLEPIE”): każde `*Delete`, `*Remove*` (poza `tagsRemove`), `*Unpublish`;
+   - **pytanie** („ZMIANA W SKLEPIE”) dla całej reszty, z dopiskiem ostrzeżeń przy polach `handle`, `status`, `category` (VAT), `price`, `ruleSet`, `quantities`.
+4. **`scripts/shopify_gql.py`** w chwili wysyłki: ta sama polityka, **wymóg dzisiejszego backupu** zmienianych obiektów (przy usuwaniu: wszystkich obiektów w zmianie),
+   log w `dziennik/zmiany.log`, wersja API przypięta (2026-07).
+5. **Ścieżka szablonu**: `scripts/szablon_pobierz.py` (Claude, odczyt) przygotowuje `robocze/szablon/<data>-<nazwa>/`; `scripts/szablon_wgraj.py`
+   uruchamia człowiek (terminal VS Code albo `!` w Claude w terminalu): kontrola konfliktu z edytorem, backup plików motywu, zapis, weryfikacja, komenda cofnięcia.
+   Komendy wpisane przez człowieka nie są wywołaniem narzędzia przez Claude, więc nie przechodzą przez hook PreToolUse (ten działa tylko na wywołania Claude).
 
-Test zabezpieczeń: `python .claude/hooks/test_straznik.py` (28 przypadków, uruchamia go też instalator).
+Test: `python .claude/hooks/test_straznik.py` (38 przypadków; uruchamia go też instalator).
 
-Ograniczenia, o których trzeba wiedzieć: reguły Claude Code i hook dopasowują tekst komend, więc to nie jest granica bezpieczeństwa
-w sensie informatycznym (zdeterminowany człowiek obejdzie je, pisząc komendę sam). Prawdziwą granicą jest warstwa 1: konto i scope'y.
+Ograniczenie: reguły i hook dopasowują tekst komend, więc nie są granicą bezpieczeństwa w sensie informatycznym. Twardą granicą są uprawnienia konta i scope'y.
 
 ## Struktura
 
 ```
 CLAUDE.md                     zasady dla Claude (po polsku, dla początkującego użytkownika)
 INSTALACJA.md / install.ps1   instalacja krok po kroku / instalator Windows
+.mcp.json                     serwer dokumentacji Shopify (shopify-dev)
 .env.example                  szablon (SHOPIFY_STORE, SHOPIFY_API_VERSION, BASELINKER_TOKEN)
-.claude/settings.json         uprawnienia + hook
-.claude/hooks/                straznik.py, polityka_zmian.py (listy), test_straznik.py
-.claude/skills/               9 skilli
-scripts/                      shopify_gql.py, backup_produktu.py, struktura_sklepu.py, cechy.py,
-                              upload_mediow.py, base_shopify_roznice.py, wspolne.py (tylko biblioteka standardowa Pythona)
+requirements.txt              biblioteki Pythona (narzędzia SEO)
+.claude/settings.json         uprawnienia, hook, MCP, wtyczka
+.claude/hooks/                straznik.py, polityka_zmian.py, test_straznik.py
+.claude/skills/               11 skilli (w tym seo i zmiany-w-szablonie)
+.claude/agents/seo-strateg.md agent SEO
+scripts/                      shopify_gql.py, backup_produktu.py, struktura_sklepu.py, cechy.py, upload_mediow.py,
+                              base_shopify_roznice.py, szablon_pobierz.py, szablon_wgraj.py (tylko człowiek), wspolne.py
+seo/                          toolkit SEO: resources/ (skille, agenci, referencje, szablony), scripts/ (ok. 70), shopify/ (metodyka + crawler)
 backup/ raporty/ robocze/ dziennik/ docs/   dane lokalne (poza repozytorium)
 ```
 
-Skrypty nie wymagają żadnych bibliotek spoza standardowej biblioteki Pythona 3.10+ (stąd brak `requirements.txt`).
+Toolkit SEO pochodzi z paczki SEO Igora (licencja w `seo/LICENSE`). Usunięto z niego pomiar PageSpeed Insights / Lighthouse przez API
+(brak klucza; wiedza o CWV została jako referencja), moduły GitHub, przykłady i narzędzia migracji z danymi innych klientów.
 
-## Dla Igora: zmiany w paczce
+## Dla Igora
 
-- Lista dozwolonych mutacji i zakazanych pól: `.claude/hooks/polityka_zmian.py` (po zmianie: `python .claude/hooks/test_straznik.py`).
-- Lekcje zebrane przez Claude u klienta: `dziennik/lekcje.md` na komputerze klienta; stałe przenoś do skilli.
+- Polityka zmian: `.claude/hooks/polityka_zmian.py` (po zmianie: `python .claude/hooks/test_straznik.py`).
+- Lekcje zebrane u klienta: `dziennik/lekcje.md` na jego komputerze; stałe przenoś do skilli.
 - Punkty **DO POTWIERDZENIA** w skillach (grep po tej frazie) uzupełnij po pierwszej sesji na sklepie.

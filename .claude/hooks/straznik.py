@@ -2,10 +2,11 @@
 """Hook PreToolUse (Bash i PowerShell): straznik zmian w sklepie Florina.
 
 Co robi przed kazda komenda, ktora Claude chce uruchomic:
-  - BLOKUJE: motyw (theme push/publish/delete/...), bezposrednie wywolania Admin API z pominieciem skryptow,
-    mutacje spoza listy dozwolonych (usuwanie, ceny, rabaty, zamowienia, ustawienia...), zapis do BaseLinkera,
+  - BLOKUJE: motyw / szablon (shopify theme push/publish/..., mutacje theme*, skrypt szablon_wgraj.py, ktory
+    uruchamia tylko czlowiek przez `!`), ustawienia sklepu, platnosci i inne pozycje z polityka_zmian.py,
+    bezposrednie wywolania Admin API z pominieciem skryptow, zapis do BaseLinkera,
     zmiany w sklepie robione wlasnym, doraznym skryptem zamiast skryptow z katalogu scripts/.
-  - PYTA (okno potwierdzenia): o kazda dozwolona zmiane w sklepie, z opisem, czego dotyczy.
+  - PYTA (okno potwierdzenia): o kazda inna zmiane w sklepie, z opisem; przy usuwaniu z twardym ostrzezeniem.
   - Milczy przy zwyklych odczytach (wtedy decyduja reguly z .claude/settings.json).
 
 Polityka (listy) jest w polityka_zmian.py. Dziennik decyzji: dziennik/straznik.log.
@@ -18,7 +19,9 @@ import sys
 from datetime import datetime
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from polityka_zmian import ocen_baselinker, ocen_mutacje, opis_zmiany  # noqa: E402
+from polityka_zmian import nazwy_mutacji, ocen_baselinker, ocen_mutacje, opis_zmiany  # noqa: E402
+
+TYLKO_CZLOWIEK = ("szablon_wgraj.py",)
 
 ZNANE_SKRYPTY_ZMIAN = ("scripts/shopify_gql.py", "scripts/upload_mediow.py", "scripts/cechy.py")
 ROZSZERZENIA = (".graphql", ".gql", ".json", ".py", ".txt", ".js", ".ps1", ".sh")
@@ -75,11 +78,14 @@ def pliki_z_komendy(komenda, cwd):
 def ocen(komenda, cwd):
     norm = komenda.replace("\\", "/")
     if MOTYW.search(komenda):
-        return "deny", "Zmiany w motywie (kod, publikacja, usuwanie) sa zablokowane. Motywem zajmuje sie Igor."
+        return "deny", ("Claude nie zmienia motywu (kod, publikacja, usuwanie). Zmiane w szablonie przygotuj jako komende dla czlowieka (skill zmiany-w-szablonie): uzytkownik uruchamia ja sam przez `!` albo w terminalu VS Code.")
     if APKA.search(komenda):
         return "deny", "Komendy `shopify app` sa zablokowane w tym projekcie."
     if not URUCHAMIA.search(komenda):
         return None, ""
+    if any(s in norm.lower() for s in TYLKO_CZLOWIEK):
+        return "deny", ("Ten skrypt zmienia motyw sklepu i uruchamia go wylacznie czlowiek: wklejajac komende z prefiksem `!` "
+                        "albo w terminalu VS Code (skill zmiany-w-szablonie). Przygotuj komende i popros uzytkownika.")
     pliki = pliki_z_komendy(komenda, cwd)
     tekst = komenda + "\n" + "\n".join(pliki.values())
 
@@ -99,12 +105,16 @@ def ocen(komenda, cwd):
         if nazwa.endswith(".py") and "allow-mutations" in tresc and not any(nazwa.lower().endswith(s) for s in ZNANE_SKRYPTY_ZMIAN):
             return "deny", f"Skrypt {nazwa} probuje zmieniac sklep z pominieciem skryptow z katalogu scripts/. To jest zablokowane."
 
-    decyzja, powody, nazwy = ocen_mutacje(tekst)
+    decyzja, powody, nazwy, ostrzezenia = ocen_mutacje(tekst)
+    if any(n.endswith(".py") for n in pliki):
+        # ostrzezenia o polach licz tylko z tresci zapytan i zmiennych, nie z kodu skryptow
+        tekst_danych = komenda + "\n" + "\n".join(t for n, t in pliki.items() if not n.endswith(".py"))
+        ostrzezenia = ocen_mutacje(tekst_danych)[3] if nazwy_mutacji(tekst_danych) else []
     if decyzja == "zakaz":
         return "deny", " ".join(powody)
     if flaga:
-        if decyzja == "pytaj":
-            opis = opis_zmiany(nazwy, tekst)
+        if decyzja in ("pytaj", "usun"):
+            opis = opis_zmiany(nazwy, tekst, decyzja, ostrzezenia)
         else:
             skrypt = next((s for s in ZNANE_SKRYPTY_ZMIAN if s in norm.lower()), "skrypt")
             opis = f"ZMIANA W SKLEPIE przez {skrypt}"
