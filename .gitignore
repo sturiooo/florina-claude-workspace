@@ -1,0 +1,29 @@
+# Sekrety: NIGDY do repozytorium
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+.service-account.json
+
+# Dane sklepu i robocze (zostaja tylko na komputerze, w repo puste katalogi)
+backup/*
+!backup/.gitkeep
+raporty/*
+!raporty/.gitkeep
+robocze/*
+!robocze/.gitkeep
+dziennik/*
+!dziennik/.gitkeep
+docs/struktura-sklepu.*
+
+# Ustawienia lokalne Claude Code (osobiste, nie wspolne)
+.claude/settings.local.json
+
+# Python / system
+__pycache__/
+*.pyc
+.venv/
+Thumbs.db
+desktop.ini
+.DS_Store
